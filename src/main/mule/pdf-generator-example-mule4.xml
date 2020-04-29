@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:pdf-generator="http://www.mulesoft.org/schema/mule/pdf-generator" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/pdf-generator http://www.mulesoft.org/schema/mule/pdf-generator/current/mule-pdf-generator.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="0921e317-e8d4-4b74-95c4-a2913a7b57be" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<salesforce:sfdc-config name="Salesforce_Config" doc:name="Salesforce Config" doc:id="835b02b1-2fe5-48cb-bb67-bfbba695d9ec" >
+		<salesforce:basic-connection username="${sfdc.username}" password="${sfdc.password}" securityToken="${sfdc.token}"/>
+	</salesforce:sfdc-config>
+	<configuration-properties doc:name="Configuration properties" doc:id="116bcd5a-b7d0-459f-ae2c-71ac84cbbba7" file="mule-properties.yaml" />
+	<flow name="file-folder-to-pdf-flow" doc:id="743eea2d-d916-439e-9334-dca3df43b733" >
+		<file:listener doc:name="On New or Updated File" doc:id="945c44e1-aa5d-4190-8b1c-7d4413e39eab" directory="${file.base}src/main/resources/in" moveToDirectory="#[p('file.base') ++ &quot;src/main/resources/out&quot;]">
+			<scheduling-strategy >
+				<fixed-frequency frequency="30" timeUnit="SECONDS"/>
+			</scheduling-strategy>
+		</file:listener>
+		<set-variable value="#[attributes.fileName]" doc:name="Set Variable" doc:id="2eaeb337-2413-49e4-b2a7-519d4a699a35" variableName="fileName"/>
+		<pdf-generator:docx-to-pdf doc:name="Convert DOCX to PDF" doc:id="0d029b89-e1c7-4132-a49f-5e67f6f404b2" />
+		<file:write doc:name="Write" doc:id="018a661e-826a-42cc-bf80-2408bfbf8aba" path="#[p('file.base') ++ &quot;src/main/resources/out/&quot; ++ vars.fileName ++ &quot;.pdf&quot;]"/>
+	</flow>
+	<flow name="sfdc-attachment-to-pdf-flow" doc:id="2f73d5ca-0503-4577-86e4-8db1ebcab2d5" >
+		<http:listener doc:name="/test" doc:id="04ecf49d-3646-46c2-aef2-fe4cf8f6c30c" config-ref="HTTP_Listener_config" path="/test"/>
+		<salesforce:query doc:name="Query" doc:id="3a793a77-d002-4f95-9413-c7cac390de2a" config-ref="Salesforce_Config">
+			<salesforce:salesforce-query >SELECT VersionData FROM ContentVersion WHERE FileType = 'WORD_X'</salesforce:salesforce-query>
+		</salesforce:query>
+		<ee:transform doc:name="Transform Message" doc:id="b131f136-9909-4899-840c-b448037b435e" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+import * from dw::core::Binaries
+output application/octet-stream
+---
+read(fromBase64(payload[0].VersionData default ""), "application/octet-stream")]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<pdf-generator:docx-to-pdf doc:name="Convert DOCX to PDF" doc:id="b8f9a6c0-7437-445a-b5ec-6df88d2082c1"/>
+
+	</flow>
+</mule>

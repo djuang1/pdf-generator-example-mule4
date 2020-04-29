@@ -1,0 +1,6 @@
+file:
+  base: "/Users/dejim.juang/Workspaces/seven-four-two/pdf-generator-example-mule4/"
+sfdc:
+  username: ""
+  password: ""
+  token: ""
